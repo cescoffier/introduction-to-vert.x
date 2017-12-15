@@ -326,7 +326,7 @@ mvn compile vertx:run
 
 Then open the HTML page in your browser to (http://localhost:8082/assets/index.html), and should should see:
 
-![the main application view](articles-list "The main application view")
+![the main application view](articles-list.png)
 
 You may wonder why the port is 8082? Remember, in the previous post we created the `src/main/conf/my-application-conf.json`. The Vert.x Maven Plugin takes this file as configuration by default. 
 

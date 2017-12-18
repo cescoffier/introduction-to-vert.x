@@ -134,7 +134,7 @@ By opening http://localhost:8080 in your browser you should see the _Hello_ mess
 
 Ok, so we have a first application using vert.x web. Let’s see some of the benefits. Let’s start with serving static resources, such as an `index.html` page. Before we go further, I should start with a disclaimer: “the HTML page we are going to see here is ugly like hell : I’m not a UI guy”. I should also add that there are probably plenty of better ways to implement this and a myriad of frameworks I should learn, but that’s not the point. I tried to keep things simple and just relying on JQuery and Bootstrap, so if you know a bit of JavaScript you can understand and edit the page.
 
-Let’s create the HTML page that will be the entry point of our application. Create an `index.html` page in `src/main/resources/assets` with the content from here. As it’s just a HTML page with a bit of JavaScript, we won’t detail the file here.
+Let’s create the HTML page that will be the entry point of our application. Create an `index.html` page in `src/main/resources/assets` with the content from [here](https://raw.githubusercontent.com/cescoffier/introduction-to-vert.x/master/post-3/src/main/resources/assets/index.html). As it’s just a HTML page with a bit of JavaScript, we won’t detail the content here.
 
 Basically, the page is a simple CRUD UI to manage my not-yet-read articles. It was made in a generic way, so you can transpose it to your own _stuff_. The list of product (here _articles_) is displayed in the main table. You can create a new product, edit one or delete one. These actions are relying on a REST API (that we are going to implement) through AJAX calls. That’s all.
 
@@ -318,7 +318,7 @@ Like every route handler, our method receives a `RoutingContext`. We populate th
 
 We could have used `Json.encodePrettily(products`), but to make the JavaScript code simpler, we just return the set of articles and not an object containing `ID => Article` entries.
 
-With this in place, we should be able to retrieve the set of bottle from our HTML page. Let’s try it:
+With this in place, we should be able to retrieve the set of articles from our HTML page. Let’s try it:
 
 ```
 mvn compile vertx:run

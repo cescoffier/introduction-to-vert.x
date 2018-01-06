@@ -57,7 +57,7 @@ public class MyFirstVerticle extends AbstractVerticle {
                         .listen(
                             // Retrieve the port from the configuration,
                             // default to 8080.
-                            config().getInteger("HTTP_PORT", 8080),
+                            config.result().getInteger("HTTP_PORT", 8080),
                             result -> {
                                 if (result.succeeded()) {
                                     fut.complete();

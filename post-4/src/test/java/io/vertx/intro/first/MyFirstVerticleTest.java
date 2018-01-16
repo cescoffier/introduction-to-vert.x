@@ -2,6 +2,7 @@ package io.vertx.intro.first;
 
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
@@ -30,7 +31,11 @@ public class MyFirstVerticleTest {
         socket.close();
 
         DeploymentOptions options = new DeploymentOptions()
-            .setConfig(new JsonObject().put("HTTP_PORT", port));
+            .setConfig(new JsonObject()
+                .put("HTTP_PORT", port)
+                .put("url", "jdbc:hsqldb:mem:test?shutdown=true")
+                .put("driver_class", "org.hsqldb.jdbcDriver")
+            );
         vertx.deployVerticle(MyFirstVerticle.class.getName(), options, context.asyncAssertSuccess());
     }
 
@@ -49,5 +54,40 @@ public class MyFirstVerticleTest {
                     context.assertTrue(body.toString().contains("Hello"));
                     async.complete();
                 }));
+    }
+
+    @Test
+    public void checkThatTheIndexPageIsServed(TestContext context) {
+        Async async = context.async();
+        vertx.createHttpClient().getNow(port, "localhost", "/assets/index.html", response -> {
+            context.assertEquals(response.statusCode(), 200);
+            context.assertEquals(response.headers().get("Content-Type"), "text/html;charset=UTF-8");
+            response.bodyHandler(body -> {
+                context.assertTrue(body.toString().contains("<title>My Reading List</title>"));
+                async.complete();
+            });
+        });
+    }
+
+    @Test
+    public void checkThatWeCanAdd(TestContext context) {
+        Async async = context.async();
+        final String json = Json.encodePrettily(new Article("Some title", "Some url"));
+        vertx.createHttpClient().post(port, "localhost", "/api/articles")
+            .putHeader("Content-Type", "application/json")
+            .putHeader("Content-Length", Integer.toString(json.length()))
+            .handler(response -> {
+                context.assertEquals(response.statusCode(), 201);
+                context.assertTrue(response.headers().get("content-type").contains("application/json"));
+                response.bodyHandler(body -> {
+                    Article article = Json.decodeValue(body.toString(), Article.class);
+                    context.assertEquals(article.getTitle(), "Some title");
+                    context.assertEquals(article.getUrl(), "Some url");
+                    context.assertNotNull(article.getId());
+                    async.complete();
+                });
+            })
+            .write(json)
+            .end();
     }
 }

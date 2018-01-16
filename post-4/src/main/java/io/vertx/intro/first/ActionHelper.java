@@ -24,7 +24,7 @@ public class ActionHelper {
         return ar -> {
             if (ar.failed()) {
                 if (ar.cause() instanceof NoSuchElementException) {
-                    context.fail(404);
+                    context.response().setStatusCode(404).end(ar.cause().getMessage());
                 } else {
                     context.fail(ar.cause());
                 }
@@ -48,7 +48,7 @@ public class ActionHelper {
         return ar -> {
             if (ar.failed()) {
                 if (ar.cause() instanceof NoSuchElementException) {
-                    rc.fail(404);
+                    rc.response().setStatusCode(404).end(ar.cause().getMessage());
                 } else {
                     rc.fail(ar.cause());
                 }

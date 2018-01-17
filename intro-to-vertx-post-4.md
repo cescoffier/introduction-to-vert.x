@@ -1,6 +1,6 @@
 # Accessing data - the reactive way
 
-This post is the fourth post of the _introduction to Vert.x_  series. In this post we are going to see how we can use JDBC in an Eclipse Vert.x application, and this, using the asynchronous API provided by the [vertx-jdbc-client](http://vertx.io/docs/vertx-jdbc-client/java/). But before using JDBC, we will learn how to use `Futures` to avoid callback hell.
+This post is the fourth post of the _introduction to Vert.x_  series. In this post we are going to see how we can use JDBC in an Eclipse Vert.x application, and this, using the asynchronous API provided by the [vertx-jdbc-client](http://vertx.io/docs/vertx-jdbc-client/java/). But before diving into JDBC and other SQL subtleties, we are going to talk about `Futures`.
 
 ## Previously in the introduction to vert.x series
 
@@ -8,53 +8,54 @@ Let’s start by refreshing our mind about the previous posts:
 
     1. The first post has described how to build a vert.x application with Maven and execute unit tests.
     2. The second post has described how this application became configurable.
-    3. The third post has introduced vertx-web, and a collection management application has been developed. This application exposes a REST API used by a HTML/JavaScript frontend.
+    3. The third post has introduced vertx-web, and a collection management application has been developed. 
+    This application exposes a REST API used by a HTML/JavaScript frontend.
 
-In this post, let's fix the major flaw of our application: its in-memory back-end. The current application uses an in-memory `Map` to store the products (articles), so very useful as we loose the content every time we restart the application. Let's use a database. In this post we are going to use PostgreSQL, but you can use any database providing a JDBC driver. Interactions with the database will be asynchronous and made using the `vertx-jdbc-client`. But before diving in these JDBC and SQL details, let's introduce the Vert.x `Future` class and explain how it's going to make asynchronous coordination much simpler.
+In this post, let's fix the major flaw of our application: the in-memory back-end. The current application uses an in-memory `Map` to store the products (articles), so very useful as we loose the content every time we restart the application. Let's use a database. In this post we are going to use PostgreSQL, but you can use any database providing a JDBC driver. For instance, our tests are going to use HSQL. Interactions with the database are asynchronous and made using the `vertx-jdbc-client`. But before diving into these JDBC and SQL details, let's introduce the Vert.x `Future` class and explain how it's going to make asynchronous coordination much simpler.
 
-The code of this post are available on the [Github repo](https://github.com/cescoffier/introduction-to-vert.x), in the `post-4` directory.
+The code of this post is available on the [Github repo](https://github.com/cescoffier/introduction-to-vert.x), in the `post-4` directory.
 
 ## Asynchronous API
 
 One of the Eclipse Vert.x characteristics is its asynchronous and non-blocking nature. With an asynchronous API, you don’t wait for a result,  but you are notified when this result is ready, the operation has completed.... Just to illustrate this, let’s take a very simple example.
 
-Let’s imagine an `compute` method. Traditionally, you would use it like this: `int r = compute(1, 1)`. This is a synchronous API as the execution continue when for the result has been returned by the `compute` method. An asynchronous version of this API would be: `compute(1, 1, r -> { /* do something with the result */ })`.In this version, you pass a function (`Handler` in the Vert.x lingo) called when the result has been computed.  This function does not return anything, and is called when the result has been computed. For instance, the `compute` method code could be something like:
+Let’s imagine an `retrieve` method. Traditionally, you would use it like this: `String r = retrieve()`. This is a synchronous API as the execution continue when for the result has been returned by the `retrieve` method. An asynchronous version of this API would be: `retrieve(r -> { /* do something with the result */ })`. In this version, you pass a function (`Handler` in the Vert.x lingo) called when the result has been computed.  This function does not return anything, and is called when the result has been computed. For instance, the `retrieve` method code could be something like:
 
 ```java
-public void compute(int a, int b, Handler<Integer> resultHandler) {
-    int r = /* something complex happens here, such as a + b */;
-    // Call the handler with the result
-    resultHandler.handle(r);
+public void retrieve(Handler<String> resultHandler) {
+    fileSystem.read(fileName, res -> {
+        resultHandler.handle(res);
+    });
 }
 ```
 
-Just to avoid misconceptions, asynchronous API are not about threads. As we can see in the `compute` example, there are no threads involved.
+Just to avoid misconceptions, asynchronous APIs are not about threads. As we can see in the `retrieve` example, there are no threads involved, and most Vert.x applications are using a very small number of threads while being asynchronous and non-blocking. Also, it's important to notice that the method is non-blocking. The `retrieve` method may return before the `resultHandler` is called.
 
-However, asynchronous operation can also ... fails. So, we need a way to encapsulate these failures and forward them to the callback. We can't use `try-catch` blocks because of the asynchrony. To capture the result or the failure or an operation, Vert.x proposes the `AsyncResult` type. Our `Handler` won't receive the plain result anymore but an `AsyncResult` encapsulating the result in case of success or the error if something bad happens:
+Asynchronous operations can also ... fail. So, we need a way to encapsulate these failures and forward them to the callback. We can't use `try-catch` blocks because of the asynchrony. To capture the result or the failure or an operation, Vert.x proposes the `AsyncResult` type. Our `Handler` does not receive the plain result anymore but an `AsyncResult` encapsulating the result in case of success or the error if something bad happens:
 
 ```java
-public void compute(int a, int b, Handler<AsyncResult<Integer>> resultHandler) {
-  try {
-    int r = /* something complex happens here, such as a + b */;
-    // Call the handler with the result
-    resultHandler.handle(Future.succeededFuture(r));
-  } catch (SomeException e) {
-    resultHandler.handle(Future.failedFuture(e));
-  }
+public void retrieve(Handler<AsyncResult<String>> resultHandler) {
+    vertx.fileSystem().readFile("fileName", ar -> {
+      if (ar.failed()) {
+          resultHandler.handle(Future.succeededFuture(ar.result().toString()));
+      } else {
+        resultHandler.handle(Future.failedFuture(ar.cause()));
+      }
+    });
 }
 ```
 
-I won't detail `Future` here, it's covered a bit later, be patient. For now, `Future.succeededFuture` and `Future.failedFuture` are just factory methods creating `AsyncResult` instances. On the consumer side, you would do:
+Look at the `if-else` block. You will see it a lot when using `AsyncResult`. I won't detail `Future` here, it's covered a bit later, just be patient. For now, `Future.succeededFuture` and `Future.failedFuture` are just factory methods creating `AsyncResult` instances. On the consumer side, you would do:
 
 ```java
-compute(1, 1, ar -> {
+retrieve(ar -> {
   if (ar.failed()) {
     // Handle the failure, the exception is retrieved using ar.cause()
     Throwable cause = ar.cause();
     // ...
    } else {
     // Made it, the result is in ar.result()
-    int r = ar.result();
+    String content = ar.result();
     // ...
    }
 });
@@ -66,17 +67,17 @@ So, to summarize, an asynchronous method is a method forwarding its result or fa
 
 Once you have a set of asynchronous methods, you generally want to orchestrate them:
 
-1. sequentially, so calling once once another one has completed,
-1. concurrently, so calling several action at the same time and be notified when all / one of them have / has completed.
+1. sequentially, so calling once another one has completed,
+1. concurrently, so calling several actions at the same time and be notified when all / one of them have / has completed.
 
 For the first case, we would do something like:
 
 ```java
-compute(1, 1, ar -> {
-  if (ar.failed()) {  
+retrieve(ar -> {
+  if (ar.failed()) {
     // do something to recover
    } else {
-    int r = ar.result();
+    String r = ar.result();
     // call another async method
     anotherAsyncMethod(r, ar2 -> {
       if (ar2.failed()) {
@@ -89,15 +90,17 @@ compute(1, 1, ar -> {
 });
 ```
 
-You can quickly spot the issue... things are becoming messy. Nested callbacks reduce code readability, and this was just with 2. Image when dealing with 5 or 6.
+You can quickly spot the issue... things start getting messy. Nested callbacks reduce code readability, and this was just with 2. Image when dealing with more like we will later in this post.
 
-for the second type of composition, you can also imagine the difficulty. In each result handler, you need to check whether or not the others have completed or failed and react. It leads to convoluted code.
+For the second type of composition, you can also imagine the difficulty. In each result handler, you need to check whether or not the others have completed or failed and react. It leads to convoluted code.
 
 ## Future and CompositeFuture - async coordination made easy
 
-To reduce the code complexity, Vert.x proposes a class named `Future`. A `Future` is an object that encapsulates a result of an action that may, or may not, have occurred yet. Unlike regular Java Future, Vert.x `Future` are asynchronous and a `Handler` is called when the `Future` is completed or `failed`. The `Future` class implements `AsyncResult` as it represents a result computed asynchronously.
+To reduce the code complexity, Vert.x proposes a class named `Future`. A `Future` is an object that encapsulates a result of an action that may, or may not, have occurred yet. Unlike regular Java Future, Vert.x `Future` are non-blocking and a `Handler` is called when the `Future` is completed or `failed`. The `Future` class implements `AsyncResult` as it represents a result computed asynchronously.
 
-Creating a `Future` object is straightforward:
+__A NOTE ABOUT JAVA FUTURE:__ Regular Java `Future` are blocking. Calling `get` blocks the caller thread until the result is received (or a timeout is reached). Vert.x `Future`s also have a `get` method returning `null` if the result is not yet received. They also expect a handler to be attached to them, calling it when the result is received.
+
+Creating a `Future` object is done using the `Future.future()` factory method:
 
 ```java
 Future<Integer> future = Future.future();
@@ -111,26 +114,36 @@ future.setHandler(ar -> {
 });
 ```
 
-Let's revisit our `compute` method. Instead of taking a callback as parameter, we can return a `Future` object:
+Let's revisit our `retrieve` method. Instead of taking a callback as parameter, we can return a `Future` object:
 
 ```java
-public Future<Integer> compute(int a, int b) {
-  Future<Integer> future = Future.future();
-  try {
-    int r = /* something complex happens here, such as a + b */;
-    // Call the handler with the result
-    future.complete(r);
-  } catch (SomeException e) {
-    future.fail(e);
-  }
-  return future;
+public Future<String> retrieve() {
+    Future<String> future = Future.future();
+    vertx.fileSystem().readFile("fileName", ar -> {
+        if (ar.failed()) {
+            future.failed(ar.cause());
+        } else {
+            future.complete(ar.result().toString());
+        }
+    });
+    return future;
 }
 ```
 
-On the consumer side, things do not change much:
+As mentioned above, it's important to understand that this `retrieve` method returns its `Future` probably before it receives a value. So, the `return future;` statement is executed before it executes `future.handle(...)`. Vert.x seasoned developers would have written this code a bit differently:
 
 ```java
-compute(1, 1).setHandler(ar -> {
+public Future<String> retrieve() {
+    Future<String> future = Future.future();
+    vertx.fileSystem().readFile("fileName", ar -> future.handle(ar.map(Buffer::toString)));
+    return future;
+}
+```
+
+We are going to cover this API in a few minutes. but first, let's look at the caller side, things do not change much. The handler is attached on the returned `Future`.
+
+```java
+retrieve().setHandler(ar -> {
   if (ar.failed()) {
     // Handle the failure, the exception is retrieved using ar.cause()
     Throwable cause = ar.cause();
@@ -146,7 +159,7 @@ compute(1, 1).setHandler(ar -> {
 Where things become much easier is when you need to compose asynchronous action. Sequential composition is handled using the `compose` method:
 
 ```java
-compute(1, 1)
+retrieve()
   .compose(this::anotherAsyncMethod)
   .setHandler(ar -> {
     // ar.result is the final result
@@ -154,32 +167,33 @@ compute(1, 1)
   });
 ```
 
-`Future.compose` takes as parameter a function consuming the result of the previous `Future` and returning another `Future`. This way you can chain many asynchronous action.
+`Future.compose` takes as parameter a function consuming the result of the previous `Future` and returning another `Future`. This way you can chain many asynchronous actions.
 
 What about concurrent composition. Let's imagine you want to invoke 2 unrelated operation and be notified when both have completed:
 
 ```java
-Future<Integer> future1 = compute(1, 1);
+Future<String> future1 = retrieve();
 Future<Integer> future2 = anotherAsyncMethod();
 CompositeFuture.all(future1, future2).setHandler(ar -> {
-  // called when either all future have completed successfully (success), or one failed (failure)
+  // called when either all future have completed successfully (success), 
+  // or one failed (failure)
 });
 ```
 
-`CompositeFuture` is a companion class that simplify drastically concurrent composition.
+`CompositeFuture` is a companion class simplifying drastically concurrent composition. `all` is not the only operator provided, you can use `join`, `any`...
 
 Using `Future` and `CompositeFuture` make the code much more readable and maintainable. Vert.x also supports RX Java to manage asynchronous composition, this will be covered in another post.
 
 ## JDBC yes, but asynchronous
 
-So, now that we have seen some basics about asynchronous API and `Future`, let’s have a look to the `vertx-jdbc-client`. This component lets us interact with a database through a JDBC driver. These interactions are asynchronous, so when you were doing:
+So, now that we have seen some basics about asynchronous APIs and `Future`s, let’s have a look to the `vertx-jdbc-client`. This Vert.x module lets us interact with a database through a JDBC driver. These interactions are asynchronous, so when you were doing:
 
 ```java
 String sql = "SELECT * FROM Products";
 ResultSet rs = stmt.executeQuery(sql);
 ```
 
-It's now going to be:
+When you use the `vertx-jdbc-client`, it becomes:
 
 ```java
 connection.query("SELECT * FROM Products", result -> {
@@ -187,17 +201,15 @@ connection.query("SELECT * FROM Products", result -> {
 });
 ```
 
-This model avoids waiting for the result. You are notified when the result is available. 
+This model avoids waiting for the result. You are notified when the result has been retrieved from the database.
 
-__A Note on JDBC__: JDBC is a blocking API by default. To interact with the database, Vert.x delegates to a _worker_ 
-thread. While it's asynchronous, it's not totally non-blocking. However, the Vert.x ecosystem also provides a truly 
-non-blocking client for MySQL and PostgreSQL.
+__A Note on JDBC__: JDBC is a blocking API by default. To interact with the database, Vert.x delegates to a _worker_  thread. While it's asynchronous, it's not totally non-blocking. However, the Vert.x ecosystem also provides a truly non-blocking clients for MySQL and PostgreSQL.
 
 Let’s now modify our application to use a database to store our products (articles).
 
-## Some maven dependencies
+## Some Maven dependencies
 
-The first things we need to do it to declare two new Maven dependencies in our pom.xml file:
+The first things we need to do it to declare two new Maven dependencies in our `pom.xml` file:
 
 ```xml
 <dependency>
@@ -212,8 +224,7 @@ The first things we need to do it to declare two new Maven dependencies in our p
 </dependency>
 ```
 
-The first dependency provides the `vertx-jdbc-client`, while the second one provides the PostgreSQL JDBC driver. If you  want to use another database, change this dependency. You will also need to change the JDBC url and JDBC driver class name
- in the code.
+The first dependency provides the `vertx-jdbc-client`, while the second one provides the PostgreSQL JDBC driver. If you  want to use another database, change this dependency. You will also need to change the JDBC url and JDBC driver class name in the code.
 
 ## Initializing the JDBC client
 
@@ -230,9 +241,9 @@ Now that we have added these dependencies, it’s time to create our JDBC client
 }
 ```
 
-We add the `url`, `driver_class`, `user` and `password` entries. Notice that if you use a different database, the configuration is likely to be different.
+We add the `url`, `driver_class`, `user` and `password` entries. Notice that if you use a different database, the configuration will likely be different.
 
-Now that the configuration is written, we need to create the JDBC client. In the `MyFirstVerticle` class, declare a new field `JDBCClient jdbc;`, and update the end of the `start` method to become:
+Now that the configuration is written, we need to create an instance of JDBC client. In the `MyFirstVerticle` class, declare a new field `JDBCClient jdbc;`, and update the end of the `start` method to become:
 
 ```java
 ConfigRetriever retriever = ConfigRetriever.create(vertx);
@@ -242,14 +253,15 @@ retriever.getConfig(
             fut.fail(config.cause());
         } else {
             // Create the JDBC client
-            jdbc = JDBCClient.createShared(vertx, config.result(), "My-Reading-List");
+            jdbc = JDBCClient.createShared(vertx, config.result(), 
+                "My-Reading-List");
             vertx
                 .createHttpServer()
                 .requestHandler(router::accept)
                 .listen(
                     // Retrieve the port from the configuration,
                     // default to 8080.
-                    config().getInteger("HTTP_PORT", 8080),
+                    config.result().getInteger("HTTP_PORT", 8080),
                     result -> {
                         if (result.succeeded()) {
                             fut.complete();
@@ -263,7 +275,7 @@ retriever.getConfig(
 );
 ```
 
-Ok, we have the _client_, we need a connection to the database. This is achieved using the _jdbc.getConnection_ method that provides its result (the connection) to a `Handler<AsyncResult<SQLConnection>>`. This handler is notified when the connection with the database is established or if something bad happened during this process. While we could use the method directly, let's extract the retrieval of a connection to a separate method and returns a `Future`:
+Ok, we have the _client_ configured with our configuration, we need a connection to the database. This is achieved using the _jdbc.getConnection_ method that provides its result (the connection) to a `Handler<AsyncResult<SQLConnection>>`. This handler is notified when the connection with the database is established or if something bad happens during the process. While we could use the method directly, let's extract the retrieval of a connection to a separate method and returns a `Future`:
 
 ```java
 private Future<SQLConnection> connect() {
@@ -290,11 +302,11 @@ if (ar.failed()) {
 
 just... shorter.
 
-However, before passing the `AsyncResult` to `future`, we want to configure the connection to enable the key generation. For this we use the `AsyncResult.map` method. This method creates another instance of `AsyncResult` based on the given one and apply a mapper function. If the given one encapsulate a failure, the created one encapsulate the same failure. If the input is a success, the mapper function is apply on the result. So, in our snippet it creates a new `AsyncResult` encapsulating the connection with the option enabled.
+However, before passing the `AsyncResult` to `future`, we want to configure the connection to enable the key generation. For this we use the `AsyncResult.map` method. This method creates another instance of `AsyncResult` based on the given one and apply a mapper function on the result. If the given one encapsulate a failure, the created one encapsulate the same failure. If the input is a success, the mapper function is applied on the result.
 
-## We need some articles
+## We need articles
 
-Now that we have a JDBC client, and a way to retrieve a connection to the database, it's time to insert some article. But because we use a relational database, we first need to create the table. Create the following method:
+Now that we have a JDBC client, and a way to retrieve a connection to the database, it's time to insert articles. But because we use a relational database, we first need to create the table. Create the following method:
 
 ```java
 private Future<SQLConnection> createTableIfNeeded(SQLConnection connection) {
@@ -312,15 +324,17 @@ private Future<SQLConnection> createTableIfNeeded(SQLConnection connection) {
 }
 ```
 
-We makes the hypothesis that we get a connection, and we call this method with this connection. The method also returns a `Future`. Attentive readers would understand that this is typically a method we can use in a `Future.compose` construct. This method body is quite simple. As usual we create a `Future` and returns it at the end. Then, we read the content of the `tables.sql` file and execute the unique statement contained in this file. The `execute` method takes the SQL statement as parameter, and invokes the given function with the result.In the handler, we completes or fails the future using the `handle` method. In this case, we want to complete the future with the database connection.
+The method also returns a `Future`. Attentive readers would spot that this is typically a method we can use in a `Future.compose` construct. This method body is quite simple. As usual we create a `Future` and returns it at the end of the body. Then, we read the content of the `tables.sql` file and execute the unique statement contained in this file. The `execute` method takes the SQL statement as parameter, and invokes the given function with the result. In the handler, we complete or fail the future using the `handle` method. In this case, we want to complete the future with the database connection.
 
 So, we need the `tables.sql` file. Creates the `src/main/resources/tables.sql` file with the following content:
 
 ```sql
-CREATE TABLE IF NOT EXISTS Articles (id SERIAL PRIMARY KEY, title VARCHAR(200) NOT NULL, url VARCHAR(200) NOT NULL)
+CREATE TABLE IF NOT EXISTS Articles (id SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    url VARCHAR(200) NOT NULL)
 ```
 
-Ok, so now we have a connection to the database, and the table. Let's insert some articles, but only if the database is empty. For this create the `createSomeDataIfNone` and `insert` methods:
+Ok, so now we have a connection to the database, and the table. Let's insert articles, but only if the database is empty. For this, create the `createSomeDataIfNone` and `insert` methods:
 
 ```java
 private Future<SQLConnection> createSomeDataIfNone(SQLConnection connection) {
@@ -339,6 +353,7 @@ private Future<SQLConnection> createSomeDataIfNone(SQLConnection connection) {
                 CompositeFuture.all(insertion1, insertion2)
                     .setHandler(r -> future.handle(r.map(connection)));
             } else {
+                // Boring... nothing to do.
                 future.complete(connection);
             }
         }
@@ -346,7 +361,8 @@ private Future<SQLConnection> createSomeDataIfNone(SQLConnection connection) {
     return future;
 }
 
-private Future<Article> insert(SQLConnection connection, Article article, boolean closeConnection) {
+private Future<Article> insert(SQLConnection connection, Article article,
+    boolean closeConnection) {
     Future<Article> future = Future.future();
     String sql = "INSERT INTO Articles (title, url) VALUES (?, ?)";
     connection.updateWithParams(sql,
@@ -356,7 +372,8 @@ private Future<Article> insert(SQLConnection connection, Article article, boolea
                 connection.close();
             }
             future.handle(
-                ar.map(res -> new Article(res.getKeys().getLong(0), article.getTitle(), article.getUrl()))
+                ar.map(res -> new Article(res.getKeys().getLong(0), 
+                    article.getTitle(), article.getUrl()))
             );
         }
     );
@@ -364,16 +381,16 @@ private Future<Article> insert(SQLConnection connection, Article article, boolea
 }
 ```
 
-Let's start by the end and the `insert` method. It follows the same pattern, and uses the `updateWithParams` method to insert an article into the database. The SQL statement contains parameters injected using a JSON Array. Notice that the order of the parameter matters.  When the insertion is done (in the handler), we close the connection if asked - this is because we are going to reuse method later. Finally, we completes or fails the `future` with, on success, a new `Article` containing the generated id. So if the insertion failed, we just forward the failure to the future. If the insertion succeed, we map it to an `Article` and complete the future with this value.
+Let's start by the end and the `insert` method. It follows the same pattern, and uses the `updateWithParams` method to insert an article into the database. The SQL statement contains parameters injected using a JSON Array. Notice that the order of the parameter matters.  When the insertion is done (in the handler), we close the connection if requested (`closeConnection` parameter) - this is because we are going to reuse method later. Finally, we complete or fail the `future` with, on success, a new `Article` containing the generated id. So, if the insertion failed, we just forward the failure to the future. If the insertion succeed, we map it to an `Article` and complete the future with this value.
 
-Ok, let's switch to the `createSomeDataIfNone` method. Again same pattern. But here we need a bit of coordination. Indeed, we have need to check whether the database is empty first, and if so insert two articles. To check if the database is empty, we use `connection.query` retrieving all the articles. If the result is not empty, we create two articles that we insert using the `insert` method. To execute these two insertions, we use the `CompositeFuture` construct. So both actions are executed in concurrently, and when both are done (or one fails) the handler is called.
+Ok, let's switch to the `createSomeDataIfNone` method. Again same pattern. But here we need a bit of coordination. Indeed, we have need to check whether the database is empty first, and if so insert two articles. To check if the database is empty, we use `connection.query` retrieving all the articles. If the result is not empty, we create two articles that we insert using the `insert` method. To execute these two insertions, we use the `CompositeFuture` construct. So both actions are executed in concurrently, and when both are done (or one fails) the handler is called. Notice that the connection is not closed.
 
 ## Putting these pieces together
 
 It's time to assemble these pieces and see how it works. The `start` method needs to be updated to execute the following action:
 
-1. Retrieve the configuration
-1. When the configuration is retrieve, create the JDBC client
+1. Retrieve the configuration (already done)
+1. When the configuration is retrieve, create the JDBC client (already done)
 1. Retrieve a connection to the database
 1. With this connection, create the table if they do not exist
 1. With the same connection, check whether the database contains article, if not, insert some data
@@ -381,7 +398,7 @@ It's time to assemble these pieces and see how it works. The `start` method need
 1. Start the HTTP server as we are ready to _serve_
 1. Report the success of failure of the boot process to `fut`
 
-Wow... that's a lot of action. Fortunately, we have implemented almost all the required method in a way we can use `Future` composition. In the `start` method, replace the end of the code with:
+Wow... that's a lot of actions. Fortunately, we have implemented almost all the required method in a way we can use `Future` composition. In the `start` method, replace the end of the code with:
 
 ```java
 // Start sequence:
@@ -414,9 +431,9 @@ ConfigRetriever.getConfigAsFuture(retriever)
     .setHandler(fut);
 ```
 
-Don't worry about the `createHttpServer` method. We will cover it shortly. This code executes the start sequence. It starts by retrieving the configuration and creates the `JDBCClient`. Then, we retrieve a database connection and initialize our database. Notice that the connection is close in all cases. When the database is set up, we start the HTTP server. Finally, when everything is done, we report the result (success or failure) to the `fut` telling to Vert.x whether or not we are ready to work.
+Don't worry about the `createHttpServer` method. We will cover it shortly. The code starts by retrieving the configuration and creates the `JDBCClient`. Then, we retrieve a database connection and initialize our database. Notice that the connection is close in all cases (even failures). When the database is set up, we start the HTTP server. Finally, when everything is done, we report the result (success or failure) to the `fut` telling to Vert.x whether or not we are ready to work.
 
-_Closing connection_: Don’t forget to close the SQL connection when you are done. The connection will be given back to the connection pool and be reused.
+__NOTE ABOUT CLOSING CONNECTIONS__: Don’t forget to close the SQL connection when you are done. The connection will be given back to the connection pool and be recycled.
 
 The `createHTTPServer` method is quite simple and follows the same pattern:
 
@@ -434,11 +451,11 @@ private Future<Void> createHttpServer(JsonObject config, Router router) {
 }
 ```
 
-Notice the `mapEmpty`. The method returns a `Future<Void>`, as we don't care of the HTTP Server. To create an `AsyncResult<Void>` from an `AsyncResult<Something>` use the `mapEmpty` method.
+Notice the `mapEmpty`. The method returns a `Future<Void>`, as we don't care of the HTTP Server. To create an `AsyncResult<Void>` from an `AsyncResult<Something>` use the `mapEmpty` method, discarding the encapsulated result.
 
 ## Implementing the REST API on top of JDBC
 
-So, at this point we have everything setup, but our API is still relying on our in-memory back-end `products`. It's time to re-implement our REST API on top of JDBC. But first we need some utility methods focusing on the interaction with the database. These methods have been extracted to ease the understanding.
+So, at this point we have everything setup, but our API is still relying on our in-memory back-end. It's time to re-implement our REST API on top of JDBC. But first we need some utility methods focusing on the interaction with the database. These methods have been extracted to ease the understanding.
 
 First, let's add the `query` method:
 
@@ -465,7 +482,8 @@ In the same vein, let's implement `queryOne`:
 private Future<Article> queryOne(SQLConnection connection, String id) {
     Future<Article> future = Future.future();
     String sql = "SELECT * FROM articles WHERE id = ?";
-    connection.queryWithParams(sql, new JsonArray().add(Integer.valueOf(id)), result -> {
+    connection.queryWithParams(sql, new JsonArray().add(Integer.valueOf(id)),
+    result -> {
         connection.close();
         future.handle(
             result.map(rs -> {
@@ -483,15 +501,16 @@ private Future<Article> queryOne(SQLConnection connection, String id) {
 }
 ```
 
-This method uses `queryWithParams` to inject the article id in the query. In the result handler, there is a bit more work as we need to check if the article has been found. If not, we throw a `NoSuchElementException` that would fails the `future`. This lets us generate 404 response.
+This method uses `queryWithParams` to inject the article id in the query. In the result handler, there is a bit more work as we need to check if the article has been found. If not, we throw a `NoSuchElementException` that would fail the `future`. This lets us generate `404` responses.
 
-We have done queries, we now need method to update and delete. Here they are:
+We have done queries, we need methods to update and delete. Here they are:
 
 ```java
 private Future<Void> update(SQLConnection connection, String id, Article article) {
     Future<Void> future = Future.future();
     String sql = "UPDATE articles SET title = ?, url = ? WHERE id = ?";
-    connection.updateWithParams(sql, new JsonArray().add(article.getTitle()).add(article.getUrl())
+    connection.updateWithParams(sql, new JsonArray().add(article.getTitle())
+            .add(article.getUrl())
             .add(Integer.valueOf(id)),
         ar -> {
             connection.close();
@@ -500,7 +519,8 @@ private Future<Void> update(SQLConnection connection, String id, Article article
             } else {
                 UpdateResult ur = ar.result();
                 if (ur.getUpdated() == 0) {
-                    future.fail(new NoSuchElementException("No article with id " + id));
+                    future.fail(new NoSuchElementException("No article with id "
+                        + id));
                 } else {
                     future.complete();
                 }
@@ -520,7 +540,8 @@ private Future<Void> delete(SQLConnection connection, String id) {
                 future.fail(ar.cause());
             } else {
                 if (ar.result().getUpdated() == 0) {
-                    future.fail(new NoSuchElementException("Unknown article " + id));
+                    future.fail(new NoSuchElementException("No article with id "
+                        + id));
                 } else {
                     future.complete();
                 }
@@ -533,7 +554,7 @@ private Future<Void> delete(SQLConnection connection, String id) {
 
 They are very similar and follows the same pattern (again!).
 
-That's great but it does not implement our REST API. So, let's focus on this now. Just to refresh our mind, here is what we need the following methods:
+That's great but it does not implement our REST API. So, let's focus on this now. Just to refresh our mind, here is the methods we need to update:
 
 * `getAll` returns all the articles.
 * `addOne` inserts a new article. Article details are given in the request body.
@@ -541,7 +562,7 @@ That's great but it does not implement our REST API. So, let's focus on this now
 * `getOne` provides the JSON representation of a specific article. The id is given as a _path parameter_.
 * `updateOne` updates a specific article. The id is given as a _path parameter_. The new details are in the request body.
 
-Because we have extract the database interaction in their own methods, implementing this method is straightforward. For instance, the `getAll` method is:
+Because we have extract the database interactions in their own method, implementing this method is straightforward. For instance, the `getAll` method is:
 
 ```java
 private void getAll(RoutingContext rc) {
@@ -551,7 +572,7 @@ private void getAll(RoutingContext rc) {
 }
 ```
 
-We retrieve a connection using the `connect` method. Then we compose (sequential composition) this with the `query` method, and we attach a handler. This handler is `ok(rc)` which is provided in the `ActionHelper` class. It basically provides the JSON representation or manage the error case.
+We retrieve a connection using the `connect` method. Then we compose (sequential composition) this with the `query` method, and we attach a handler. This handler is `ok(rc)` which is provided in the `ActionHelper` class. It basically provides the JSON representation or manage the error responses (`500`, `404`).
 
 Following the same pattern, the other methods are implemented as follows:
 
@@ -588,9 +609,9 @@ private void updateOne(RoutingContext rc) {
 }
 ```
 
-== Test, test, and test again
+## Test, test, and test again
 
-If we run the application tests right now, it will fails. First we need to update the configuration to pass the JDBC url and related details, and we need a database. We don't really want to use PostGreSQL in our unit test. Let's use HSQL, an in-memory database. To do that, first, add the following dependency in the `pom.xml`:
+If we run the application tests right now, it fails. First we need to update the configuration to pass the JDBC url and related details, but wait... we also need a database. We don't necessarily want to use PostGreSQL in our unit test. Let's use HSQL, an in-memory database. To do that, first, add the following dependency in the `pom.xml`:
 
 ```xml
 <dependency>
@@ -601,13 +622,15 @@ If we run the application tests right now, it will fails. First we need to updat
 </dependency>
 ```
 
-But wait, if you already use JDBC you know that all the database are using different dialects. Here, we can't use the same table creation statement. So create the `src/test/resources/tables.sql` with the following content:
+But wait, if you already use JDBC or database in general, you know that each database use a different dialects (that's the power of standards). Here, we can't use the same table creation statement because HSQL does not understand the PostGreSQL dialect. So create the `src/test/resources/tables.sql` with the following content:
 
 ```sql
-CREATE TABLE IF NOT EXISTS Articles (id INTEGER IDENTITY, title VARCHAR(200), url VARCHAR(200))
+CREATE TABLE IF NOT EXISTS Articles (id INTEGER IDENTITY,
+    title VARCHAR(200),
+    url VARCHAR(200))
 ```
 
-It's the equivalent statement in the HSQL dialect. How would that work? When Vert.x reads a file it also check the _classpath_. When running test, this file superseds the initial file we created.
+It's the equivalent statement in the HSQL dialect. How would that work? When Vert.x reads a file it also checks the _classpath_ (and `src/test/resources` is included in the _test classpath_). When running test, this file superseds the initial file we created.
 
 We need to slightly update our tests to configure the `JDBCClient`. In the `MyFirstVerticleTest` class, change the `DeploymentOption` object created in the `setUp` method to be:
 
@@ -626,10 +649,13 @@ Now, you should be able to run the test with: `mvn clean test`.
 
 ## Show time
 
-This time we want to use a PostGreSQL instance. I'm going to use Docker, but use your favorite approach. With Docker, I starts my instance as follows:
+This time we want to use a PostGreSQL instance. I'm going to use Docker, but use your favorite approach. With Docker, I start my instance as follows:
 
 ```bash
-docker run --name some-postgres -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_DB=my_read_list -p 5432:5432 -d postgres
+docker run --name some-postgres -e POSTGRES_USER=user \
+    -e POSTGRES_PASSWORD=password \
+    -e POSTGRES_DB=my_read_list \
+    -p 5432:5432 -d postgres
 ```
 
 Let’s now run our application:
@@ -643,15 +669,16 @@ Open your browser to http://localhost:8082/assets/index.html, and you should see
 If you want to package the application, run `mvn clean package`. Then run the application using:
 
 ```bash
-java -jar target/my-first-app-1.0-SNAPSHOT.jar -conf src/main/conf/my-application-conf.json
+java -jar target/my-first-app-1.0-SNAPSHOT.jar \
+    -conf src/main/conf/my-application-conf.json
 ```
 
 ## Conclusion
 
-In the post we have seen two different topics. First we have introduce asynchronous composition and how `Future` helps to manage sequential and concurrent composition. With `Future` you follow a common pattern in your implementation, which is quite straightforward once you get it. Then, we have seen how JDBC can be use to implement our API. Because we use `Future`, using asynchronous JDBC is quite simple.
+In the post we have covered two different topics. First we have introduce asynchronous composition and how `Future` helps to manage sequential and concurrent composition. With `Future` you follow a common pattern in your implementation, which is quite straightforward once you get it. Then, we have seen how JDBC can be used to implement our API. Because we use `Future`, using asynchronous JDBC is quite simple.
 
 You may have been surprised by the asynchronous development model, but once you start using it, it’s hard to come back. Asynchronous and event-driven architecture represents how the world around us works. Embracing these give you superpowers.
 
-In the next post, we will see how RX JAva 2 can be used instead of Future.
+In the next post, we will see how RX Java 2 can be used instead of Future.
 
 Stay tuned, and happy coding !

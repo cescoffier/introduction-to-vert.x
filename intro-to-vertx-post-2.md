@@ -4,13 +4,13 @@
 
 In the previous post, we developed a very simple Vert.x application, and saw how this application can be tested, packaged and executed. That was nice, isn’t it? Well, ok, that was only the beginning. In this post, we are going to enhance our application to support external configuration.
 
-So just to remind you, we have an application starting a HTTP server on the port `8080` and replying a polite “Hello” message to all HTTP requests. The code of the previous post is available in the `post-1` directory from https://github.com/cescoffier/introduction-to-vert.x. The code developed in this post in in the `post-2` directory.
+So just to remind you, we have an application starting an HTTP server on the port `8080` and replying with a polite “Hello” message to all HTTP requests. The code of the previous post is available in the `post-1` directory from https://github.com/cescoffier/introduction-to-vert.x. The code developed in this post is in the `post-2` directory.
 
 ## So, why do we need configuration?
 
 That’s a good question. The application works right now, but well, let’s say you want to deploy it on a machine where the port `8080` is already taken. We would need to change the port in the application code and in the test, just for this machine. That would be sad. Fortunately, Vert.x applications are configurable.
 
-They are several ways to configure a Vert.x application:
+There are several ways to configure a Vert.x application:
 
 1. using a simple JSON file
 2. using Vert.x Config
@@ -111,7 +111,7 @@ DeploymentOptions options = new DeploymentOptions()
 vertx.deployVerticle(MyFirstVerticle.class.getName(), options, context.asyncAssertSuccess());
 ```
 
-So, the idea is very simple. We open a server socket that would pick a random port (that’s why we put `0` as parameter). We retrieve the used port and close the socket. Be aware that this method is not perfect and may fail if the picked port becomes used between the `close` method and the start of our HTTP server. However, it would work fine in the very high majority of the case.
+So, the idea is very simple. We open a server socket that would pick a random port (that’s why we put `0` in the ServerSocket parameter). We retrieve the used port and close the socket. Be aware that this method is not perfect and may fail if the picked port becomes used between the `close` method and the start of our HTTP server. However, it should work fine in the very high majority of cases.
 
 With this in place, our test is now using a random port. Execute them with:
 
@@ -121,7 +121,7 @@ mvn clean test
 
 ## External configuration - Let’s run on another port
 
-Ok, well random port is not what we want in production. Could you imagine the face of your ops team if you tell them that your application is picking a random port. It can actually be funny, but we should never mess with the ops team.
+Ok, well a random port is not what we want in production. Could you imagine the face of your ops team if you tell them that your application is picking a random port. It could actually be funny, but we should never mess with the ops team.
 
 So for the actual execution of your application, let’s pass the configuration in an external file. The configuration is stored in a json file.
 
@@ -141,11 +141,11 @@ java -jar target/my-first-app-1.0-SNAPSHOT.jar -conf src/main/conf/my-applicatio
 
 Open a browser on http://localhost:8082, here it is!
 
-How does that work? Our fat jar is using the `Launcher` class (provided by Vert.x) to launch our application. This class is reading the `-conf` parameter and create the corresponding deployment options when deploying our verticle.
+How does that work? Our fat jar is using the `Launcher` class (provided by Vert.x) to launch our application. This class is reading the `-conf` parameter and creating the corresponding deployment options when deploying our verticle.
 
 ## 12 Factor Apps and other configuration store
 
-While storing the configuration in a JSON file is pretty convenient, it does not always fit the requirement. For instance, if you follows the [12 Factor App](https://12factor.net/config) principles, it recommend the application to read _environment variables_ as configuration. What about Consul, or Vault to store _secrets_. To handle all these case, Vert.x provides a convenient module named: `vertx-config`. In this section, we change how we retrieve the HTTP port from the environment variable, system properties and finally the provided configuration file.
+While storing the configuration in a JSON file is pretty convenient, it does not always fit the requirement. For instance, if you follows the [12 Factor App](https://12factor.net/config) principles, it recommends that the application reads _environment variables_ as the configuration. What about Consul, or Vault to store _secrets_. To handle all these cases, Vert.x provides a convenient module named: `vertx-config`. In this section, we change how we retrieve the HTTP port from the environment variable, system properties and finally the provided configuration file.
 
 First, add the following dependency to your `pom.xml` file:
 
@@ -185,7 +185,7 @@ public void start(Future<Void> fut) {
 }
 ```    
 
-The `vertx-config` module provides the `ConfigRetriever`. This object is responsible for retrieving the different configuration chunk and compute the final configuration. This process being asynchronous, the result is passed to a handler that execute the rest of the startup logic.
+The `vertx-config` module provides the `ConfigRetriever`. This object is responsible for retrieving the different configuration chunks and computing the final configuration. This process being asynchronous, the result is passed to a handler that execute the rest of the startup logic.
 
 With this in place, the port is now chosen from 3 different locations:
 

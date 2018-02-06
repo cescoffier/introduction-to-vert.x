@@ -2,9 +2,9 @@
 
 ## Previously in this blog series
 
-This post is part of the _Introduction to Vert.x_ series. So, let’s have a quick look about the content of the previous posts. In the first post, we developed a very simple Eclipse Vert.x application, and saw how this application can be tested, packaged and executed. In the last post, we saw how this application became configurable and how we can use a random port in test.
+This post is part of the _Introduction to Vert.x_ series. So, let’s have a quick look back at the content of the previous posts. In the first post, we developed a very simple Eclipse Vert.x application, and saw how this application can be tested, packaged and executed. In the last post, we saw how this application became configurable and how we can use a random port in a test.
 
-Well, nothing fancy... Let’s go a bit further this time and develop a CRUD-ish / REST-ish application. So an application exposing an HTML page interacting with the backend using a REST API. The level of RESTfullness of the API is not the topic of this post, I let you decide as it’s a very slippery topic.
+Well, nothing fancy... Let’s go a bit further this time and develop a CRUD-ish / REST-ish application. So an application exposing an HTML page interacting with the backend using a REST API. The level of RESTfulness of the API is not the topic of this post, I leave it you to decide as it’s a very slippery topic.
 
 So, in other words we are going to see:
 
@@ -18,7 +18,7 @@ So, let’s start.
 
 ## Vert.x Web
 
-As you may have notices in the previous posts, dealing with complex HTTP application using only `Vert.x Core` would be kind of cumbersome. That’s the main reason behind `Vert.x Web`. It makes the development of web applications really easy, without changing the philosophy.
+As you may have noticed in the previous posts, dealing with complex HTTP application using only `Vert.x Core` would be kind of cumbersome. That’s the main reason behind `Vert.x Web`. It makes the development of web applications really easy, without changing the philosophy.
 
 To use Vert.x Web, you need to update the `pom.xml` file to add the following dependency:
 
@@ -32,7 +32,7 @@ To use Vert.x Web, you need to update the `pom.xml` file to add the following de
 
 That’s the only thing you need to use Vert.x Web. Sweet, no?
 
-Let’s now use it. Remember, in the previous post, when we requested http://localhost:8080, we reply a nice _Hello World_ message. Let’s do the same with Vert.x Web. Open the `io.vertx.intro.first.MyFirstVerticle` class and change the start method to be:
+Let’s now use it. Remember, in the previous post, when we requested http://localhost:8080, we reply with a nice _Hello World_ message. Let’s do the same with Vert.x Web. Open the `io.vertx.intro.first.MyFirstVerticle` class and change the start method to be:
 
 ```java
 @Override
@@ -99,7 +99,7 @@ router.route("/").handler(routingContext -> {
 
 It routes requests arriving on `/` to the given handler. Handlers receive a `RoutingContext` object. This handler is quite similar to the code we had before, and it’s quite normal as it manipulates the same type of object: `HttpServerResponse`.
 
-Let’s now have a look to the rest of the code:
+Let’s now have a look at the rest of the code:
 
 ```java
 //...
@@ -119,7 +119,7 @@ vertx
 }
 ```
 
-It’s basically the same code as before, except that we change the request handler. We pass `router::accept` to the handler. You may not be familiar with this notation. It’s a reference to a method (here the method `accept` from the `router` object). In other worlds, it instructs vert.x to call the accept method of the router when it receives a request.
+It’s basically the same code as before, except that we change the request handler. We pass `router::accept` to the handler. You may not be familiar with this notation. It’s a reference to a method (here the method `accept` from the `router` object). In other words, it instructs vert.x to call the accept method of the router when it receives a request.
 
 Let’s try to see if this work:
 
@@ -132,11 +132,11 @@ By opening http://localhost:8080 in your browser you should see the _Hello_ mess
 
 ## Exposing static resources
 
-Ok, so we have a first application using vert.x web. Let’s see some of the benefits. Let’s start with serving static resources, such as an `index.html` page. Before we go further, I should start with a disclaimer: “the HTML page we are going to see here is ugly like hell : I’m not a UI guy”. I should also add that there are probably plenty of better ways to implement this and a myriad of frameworks I should learn, but that’s not the point. I tried to keep things simple and just relying on JQuery and Bootstrap, so if you know a bit of JavaScript you can understand and edit the page.
+Ok, so we have a first application using vert.x web. Let’s see some of the benefits. Let’s start with serving static resources, such as an `index.html` page. Before we go further, I should start with a disclaimer: “the HTML page we are going to see here is ugly as hell : I’m not a UI guy”. I should also add that there are probably plenty of better ways to implement this and a myriad of frameworks I should learn, but that’s not the point. I tried to keep things simple and just relying on JQuery and Bootstrap, so if you know a bit of JavaScript you can understand and edit the page.
 
-Let’s create the HTML page that will be the entry point of our application. Create an `index.html` page in `src/main/resources/assets` with the content from [here](https://raw.githubusercontent.com/cescoffier/introduction-to-vert.x/master/post-3/src/main/resources/assets/index.html). As it’s just a HTML page with a bit of JavaScript, we won’t detail the content here.
+Let’s create the HTML page that will be the entry point of our application. Create an `index.html` page in `src/main/resources/assets` with the content from [here](https://raw.githubusercontent.com/cescoffier/introduction-to-vert.x/master/post-3/src/main/resources/assets/index.html). As it’s just an HTML page with a bit of JavaScript, we won’t detail the content here.
 
-Basically, the page is a simple CRUD UI to manage my not-yet-read articles. It was made in a generic way, so you can transpose it to your own _stuff_. The list of product (here _articles_) is displayed in the main table. You can create a new product, edit one or delete one. These actions are relying on a REST API (that we are going to implement) through AJAX calls. That’s all.
+Basically, the page is a simple CRUD UI to manage my not-yet-read articles. It was made in a generic way, so you can transpose it to your own _stuff_. The list of products (here _articles_) is displayed in the main table. You can create a new product, edit one or delete one. These actions are relying on a REST API (that we are going to implement) through AJAX calls. That’s all.
 
 Once this page is created, edit the `io.vertx.blog.first.MyFirstVerticle` class and change the `start` method to be:
 
@@ -199,7 +199,7 @@ As you may notice too... the table is empty, this is because we didn’t impleme
 
 ## REST API with Vert.x Web
 
-Vert.x Web makes the implementation of REST API really easy, as it basically routes your URL to the right handler. The API is very simple, and will be structured as follows:
+Vert.x Web makes the implementation of a REST API really easy, as it basically routes your URL to the right handler. The API is very simple, and will be structured as follows:
 
 * `GET /api/articles` => get all articles (`getAll`)
 * `GET /api/articles/:id` => get the article with the corresponding id (`getOne`)
@@ -261,7 +261,7 @@ public class Article {
 }
 ```
 
-It’s a very simple _bean_ class (so with getters and setters). We choose this format because Vert.x is relying on Jackson to map object to and from JSON.
+It’s a very simple _bean_ class (so with getters and setters). We choose this format because Vert.x is relying on Jackson to map objects to and from JSON.
 
 Now, let’s create a couple of article. In the `MyFirstVerticle` class, add the following code:
 
@@ -314,7 +314,7 @@ private void getAll(RoutingContext routingContext) {
 }
 ```
 
-Like every route handler, our method receives a `RoutingContext`. We populate the response by setting the `content-type` header and the actual content. To create the actual content, no need to compute the JSON string ourself. Vert.x provices the `Json` class mapping object to and from JSON String. So `Json.encodePrettily(products.values())` computes the JSON string representing the set of articles.
+Like every route handler, our method receives a `RoutingContext`. We populate the response by setting the `content-type` header and the actual content. To create the actual content, no need to compute the JSON string ourself. Vert.x provides the `Json` class mapping object to and from JSON String. So `Json.encodePrettily(products.values())` computes the JSON string representing the set of articles.
 
 We could have used `Json.encodePrettily(products`), but to make the JavaScript code simpler, we just return the set of articles and not an object containing `ID => Article` entries.
 
@@ -324,7 +324,7 @@ With this in place, we should be able to retrieve the set of articles from our H
 mvn compile vertx:run
 ```
 
-Then open the HTML page in your browser to (http://localhost:8082/assets/index.html), and should should see:
+Then open the HTML page in your browser to (http://localhost:8082/assets/index.html), and you should see:
 
 ![the main application view](articles-list.png)
 
@@ -377,7 +377,7 @@ Let’s try this, if you kept the application running just click on the `Add a n
 Enter the data such as: `Building Reactive Microservices in Java` as title and `https://developers.redhat.com/promotions/building-reactive-microservices-in-java/` as url. Click on `save`, and the article should appear in the list.
 
 _Status 201?_
-As you can see, we have set the response status to `201`. It means `CREATED`, and is the generally used in REST API that create an entity. By default vert.x web is setting the status to `200` meaning `OK`.
+As you can see, we have set the response status to `201`. It means `CREATED`, and is generally used in a REST API that creates an entity. By default vert.x web is setting the status to `200` meaning `OK`.
 
 ### Reading complete
 
@@ -387,7 +387,7 @@ Well, sometimes you take time to read articles, so we should be able to delete i
 router.delete("/api/articles/:id").handler(this::deleteOne);
 ```
 
-In the _path_, we define a parameter `:id`. So, when handling a matching request, Vert.x extracts the path segment corresponding to the parameter and let us access it in the handler method. For instance, `/api/articles/0` maps `id` to `0`.
+In the _path_, we define a parameter `:id`. So, when handling a matching request, Vert.x extracts the path segment corresponding to the parameter and lets us access it in the handler method. For instance, `/api/articles/0` maps `id` to `0`.
 
 Let’s see how the parameter can be used in the handler method. Create the deleteOne method as follows:
 
@@ -415,9 +415,9 @@ We won’t explain `getOne` and `updateOne` as the implementations are straightf
 
 ## Concurrency
 
-Let's talk a bit about concurrency. Obviously using an in-memory backend in not a production settings, but it illustrates one of the key characteristic of Vert.x. We do read and write operations on this backend without using any synchronization constructs. Seasonned Java developers would cleary be mad about this... 
+Let's talk a bit about concurrency. Obviously using an in-memory backend in not for a production setting, but it illustrates one of the key characteristics of Vert.x. We do read and write operations on this backend without using any synchronization constructs. Seasoned Java developers would clearly be mad about this... 
 
-However, Vert.x verticles are single threaded. It means that only one thread is accessing them, and always the same. So we don't need synchronization because we can't have concurrent accesses. That's great, isn't it? But how do we handle concurrent HTTP requests? Well, that's also simple, using the very same thread everytime. Because everything we do is not blocking processing and respding to the request is fast, so while we won't process another request at the **same** time, it does not mean we can't handle concurrent requests, they are just queued, but not for long. If you try to execute concurrent requests (with tools like Gatling or `wrk`) you will realize very good response time, thanks to this event loop mechanism.
+However, Vert.x verticles are single threaded. It means that only one thread is accessing them, and always the same thread. So we don't need synchronization because we can't have concurrent accesses. That's great, isn't it? But how do we handle concurrent HTTP requests? Well, that's also simple, using the very same thread every time. Because everything we do is not blocking processing and responses to the request are fast, so while we won't process another request at the **same** time, it does not mean we can't handle concurrent requests, they are just queued, but not for long. If you try to execute concurrent requests (with tools like Gatling or `wrk`) you will realize very good response times, thanks to this event loop mechanism.
 
 ### Summary
 

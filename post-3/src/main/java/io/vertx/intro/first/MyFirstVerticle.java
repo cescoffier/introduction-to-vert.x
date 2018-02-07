@@ -16,8 +16,8 @@ import java.util.Map;
 
 public class MyFirstVerticle extends AbstractVerticle {
 
-    // Store our products
-    private Map<Integer, Article> products = new LinkedHashMap<>();
+    // Store our readingList
+    private Map<Integer, Article> readingList = new LinkedHashMap<>();
 
     @Override
     public void start(Future<Void> fut) {
@@ -72,23 +72,23 @@ public class MyFirstVerticle extends AbstractVerticle {
     }
 
 
-    // Create some product
+    // Create a readingList
     private void createSomeData() {
         Article article1 = new Article("Fallacies of distributed computing", "https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing");
-        products.put(article1.getId(), article1);
+        readingList.put(article1.getId(), article1);
         Article article2 = new Article("Reactive Manifesto", "https://www.reactivemanifesto.org/");
-        products.put(article2.getId(), article2);
+        readingList.put(article2.getId(), article2);
     }
 
     private void getAll(RoutingContext routingContext) {
         routingContext.response()
             .putHeader("content-type", "application/json; charset=utf-8")
-            .end(Json.encodePrettily(products.values()));
+            .end(Json.encodePrettily(readingList.values()));
     }
 
     private void addOne(RoutingContext routingContext) {
         Article article = routingContext.getBodyAsJson().mapTo(Article.class);
-        products.put(article.getId(), article);
+        readingList.put(article.getId(), article);
         routingContext.response()
             .setStatusCode(201)
             .putHeader("content-type", "application/json; charset=utf-8")
@@ -99,7 +99,7 @@ public class MyFirstVerticle extends AbstractVerticle {
         String id = routingContext.request().getParam("id");
         try {
             Integer idAsInteger = Integer.valueOf(id);
-            products.remove(idAsInteger);
+            readingList.remove(idAsInteger);
             routingContext.response().setStatusCode(204).end();
         } catch (NumberFormatException e) {
             routingContext.response().setStatusCode(400).end();
@@ -111,7 +111,7 @@ public class MyFirstVerticle extends AbstractVerticle {
         String id = routingContext.request().getParam("id");
         try {
             Integer idAsInteger = Integer.valueOf(id);
-            Article article = products.get(idAsInteger);
+            Article article = readingList.get(idAsInteger);
             if (article == null) {
                 // Not found
                 routingContext.response().setStatusCode(404).end();
@@ -130,14 +130,14 @@ public class MyFirstVerticle extends AbstractVerticle {
         String id = routingContext.request().getParam("id");
         try {
             Integer idAsInteger = Integer.valueOf(id);
-            Article article = products.get(idAsInteger);
+            Article article = readingList.get(idAsInteger);
             if (article == null) {
                 // Not found
                 routingContext.response().setStatusCode(404).end();
             } else {
                 JsonObject body = routingContext.getBodyAsJson();
                 article.setTitle(body.getString("title")).setUrl(body.getString("url"));
-                products.put(idAsInteger, article);
+                readingList.put(idAsInteger, article);
                 routingContext.response()
                     .setStatusCode(200)
                     .putHeader("content-type", "application/json; charset=utf-8")

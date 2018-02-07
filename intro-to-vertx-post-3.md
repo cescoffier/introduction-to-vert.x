@@ -136,7 +136,7 @@ Ok, so we have a first application using vert.x web. Let’s see some of the ben
 
 Let’s create the HTML page that will be the entry point of our application. Create an `index.html` page in `src/main/resources/assets` with the content from [here](https://raw.githubusercontent.com/cescoffier/introduction-to-vert.x/master/post-3/src/main/resources/assets/index.html). As it’s just an HTML page with a bit of JavaScript, we won’t detail the content here.
 
-Basically, the page is a simple CRUD UI to manage my not-yet-read articles. It was made in a generic way, so you can transpose it to your own _stuff_. The list of products (here _articles_) is displayed in the main table. You can create a new product, edit one or delete one. These actions are relying on a REST API (that we are going to implement) through AJAX calls. That’s all.
+Basically, the page is a simple CRUD UI to manage my not-yet-read articles. It was made in a generic way, so you can transpose it to your own _stuff_. The reading list (here _articles_) is displayed in the main table. You can create a new reading list, edit one or delete one. These actions are relying on a REST API (that we are going to implement) through AJAX calls. That’s all.
 
 Once this page is created, edit the `io.vertx.blog.first.MyFirstVerticle` class and change the `start` method to be:
 
@@ -266,14 +266,14 @@ It’s a very simple _bean_ class (so with getters and setters). We choose this 
 Now, let’s create a couple of article. In the `MyFirstVerticle` class, add the following code:
 
 ```java
-// Store our products
-private Map<Integer, Article> products = new LinkedHashMap<>();
-// Create some products
+// Store our readingList
+private Map<Integer, Article> readingList = new LinkedHashMap<>();
+// Create a readingList
 private void createSomeData() {
     Article article1 = new Article("Fallacies of distributed computing", "https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing");
-    products.put(article1.getId(), article1);
+    readingList.put(article1.getId(), article1);
     Article article2 = new Article("Reactive Manifesto", "https://www.reactivemanifesto.org/");
-    products.put(article2.getId(), article2);
+    readingList.put(article2.getId(), article2);
 }
 ```
 
@@ -294,7 +294,7 @@ public void start(Future<Void> fut) {
 
 As you have noticed, we don’t really have a backend here, it’s just a (in-memory) map. Adding a backend will be covered in another post.
 
-### Get our products
+### Get our readingList
 
 Enough decoration, let’s implement the REST API. We are going to start with `GET /api/articles`. It returns the list of articles structured in a JSON Array.
 
@@ -310,13 +310,13 @@ This line instructs the router to handle the `GET` requests on `/api/articles` b
 private void getAll(RoutingContext routingContext) {
   routingContext.response()
       .putHeader("content-type", "application/json; charset=utf-8")
-      .end(Json.encodePrettily(products.values()));
+      .end(Json.encodePrettily(readingList.values()));
 }
 ```
 
-Like every route handler, our method receives a `RoutingContext`. We populate the response by setting the `content-type` header and the actual content. To create the actual content, no need to compute the JSON string ourself. Vert.x provides the `Json` class mapping object to and from JSON String. So `Json.encodePrettily(products.values())` computes the JSON string representing the set of articles.
+Like every route handler, our method receives a `RoutingContext`. We populate the response by setting the `content-type` header and the actual content. To create the actual content, no need to compute the JSON string ourself. Vert.x provides the `Json` class mapping object to and from JSON String. So `Json.encodePrettily(readingList.values())` computes the JSON string representing the set of articles.
 
-We could have used `Json.encodePrettily(products`), but to make the JavaScript code simpler, we just return the set of articles and not an object containing `ID => Article` entries.
+We could have used `Json.encodePrettily(readingList`), but to make the JavaScript code simpler, we just return the set of articles and not an object containing `ID => Article` entries.
 
 With this in place, we should be able to retrieve the set of articles from our HTML page. Let’s try it:
 
@@ -344,7 +344,7 @@ I’m sure you are curious, and want to actually see what is returned by our RES
 } ]
 ```
 
-### Create a product
+### Create a readingList
 
 Now we can retrieve the set of articles, let’s create a new one. Unlike the previous REST API endpoint, this one needs to read the request’s body. For performance reason, it should be explicitly enabled. Don’t be scared... it’s just a handler.
 
@@ -362,7 +362,7 @@ The second line maps POST requests on `/api/articles` to the `addOne` method. Le
 ```java
 private void addOne(RoutingContext routingContext) {
     Article article = routingContext.getBodyAsJson().mapTo(Article.class);
-    products.put(article.getId(), article);
+    readingList.put(article.getId(), article);
     routingContext.response()
         .setStatusCode(201)
         .putHeader("content-type", "application/json; charset=utf-8")
@@ -396,7 +396,7 @@ private void deleteOne(RoutingContext routingContext) {
     String id = routingContext.request().getParam("id");
     try {
         Integer idAsInteger = Integer.valueOf(id);
-        products.remove(idAsInteger);
+        readingList.remove(idAsInteger);
         routingContext.response().setStatusCode(204).end();
     } catch (NumberFormatException e) {
         routingContext.response().setStatusCode(400).end();

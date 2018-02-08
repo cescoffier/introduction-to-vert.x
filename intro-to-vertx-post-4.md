@@ -11,7 +11,7 @@ Let’s start by refreshing our mind about the previous posts:
     3. The third post has introduced vertx-web, and a collection management application has been developed. 
     This application exposes a REST API used by a HTML/JavaScript frontend.
 
-In this post, let's fix the major flaw of our application: the in-memory back-end. The current application uses an in-memory `Map` to store the products (articles), so very useful as we loose the content every time we restart the application. Let's use a database. In this post we are going to use PostgreSQL, but you can use any database providing a JDBC driver. For instance, our tests are going to use HSQL. Interactions with the database are asynchronous and made using the `vertx-jdbc-client`. But before diving into these JDBC and SQL details, let's introduce the Vert.x `Future` class and explain how it's going to make asynchronous coordination much simpler.
+In this post, let's fix the major flaw of our application: the in-memory back-end. The current application uses an in-memory `Map` to store the reading list (articles), so not very useful as we loose the content every time we restart the application. Let's use a database. In this post we are going to use PostgreSQL, but you can use any database providing a JDBC driver. For instance, our tests are going to use HSQL. Interactions with the database are asynchronous and made using the `vertx-jdbc-client`. But before diving into these JDBC and SQL details, let's introduce the Vert.x `Future` class and explain how it's going to make asynchronous coordination much simpler.
 
 The code of this post is available on the [Github repo](https://github.com/cescoffier/introduction-to-vert.x), in the `post-4` directory.
 
@@ -19,7 +19,7 @@ The code of this post is available on the [Github repo](https://github.com/cesco
 
 One of the Eclipse Vert.x characteristics is its asynchronous and non-blocking nature. With an asynchronous API, you don’t wait for a result,  but you are notified when this result is ready, the operation has completed.... Just to illustrate this, let’s take a very simple example.
 
-Let’s imagine an `retrieve` method. Traditionally, you would use it like this: `String r = retrieve()`. This is a synchronous API as the execution continue when for the result has been returned by the `retrieve` method. An asynchronous version of this API would be: `retrieve(r -> { /* do something with the result */ })`. In this version, you pass a function (`Handler` in the Vert.x lingo) called when the result has been computed.  This function does not return anything, and is called when the result has been computed. For instance, the `retrieve` method code could be something like:
+Let’s imagine a `retrieve` method. Traditionally, you would use it like this: `String r = retrieve()`. This is a synchronous API as the execution continues when the result has been returned by the `retrieve` method. An asynchronous version of this API would be: `retrieve(r -> { /* do something with the result */ })`. In this version, you pass a function (`Handler` in the Vert.x lingo) which is called when the result has been computed.  This function does not return anything, and is called when the result has been computed. For instance, the `retrieve` method code could be something like:
 
 ```java
 public void retrieve(Handler<String> resultHandler) {
@@ -189,14 +189,14 @@ Using `Future` and `CompositeFuture` make the code much more readable and mainta
 So, now that we have seen some basics about asynchronous APIs and `Future`s, let’s have a look to the `vertx-jdbc-client`. This Vert.x module lets us interact with a database through a JDBC driver. These interactions are asynchronous, so when you were doing:
 
 ```java
-String sql = "SELECT * FROM Products";
+String sql = "SELECT * FROM Articles";
 ResultSet rs = stmt.executeQuery(sql);
 ```
 
 When you use the `vertx-jdbc-client`, it becomes:
 
 ```java
-connection.query("SELECT * FROM Products", result -> {
+connection.query("SELECT * FROM Articles", result -> {
         // do something with the result
 });
 ```
@@ -205,7 +205,7 @@ This model avoids waiting for the result. You are notified when the result has b
 
 __A Note on JDBC__: JDBC is a blocking API by default. To interact with the database, Vert.x delegates to a _worker_  thread. While it's asynchronous, it's not totally non-blocking. However, the Vert.x ecosystem also provides a truly non-blocking clients for MySQL and PostgreSQL.
 
-Let’s now modify our application to use a database to store our products (articles).
+Let’s now modify our application to use a database to store our reading list (articles).
 
 ## Some Maven dependencies
 
@@ -275,7 +275,7 @@ retriever.getConfig(
 );
 ```
 
-Ok, we have the _client_ configured with our configuration, we need a connection to the database. This is achieved using the _jdbc.getConnection_ method that provides its result (the connection) to a `Handler<AsyncResult<SQLConnection>>`. This handler is notified when the connection with the database is established or if something bad happens during the process. While we could use the method directly, let's extract the retrieval of a connection to a separate method and returns a `Future`:
+Ok, we have the _client_ configured with our configuration, we need a connection to the database. This is achieved using the _jdbc.getConnection_ method that provides its result (the connection) to a `Handler<AsyncResult<SQLConnection>>`. This handler is notified when the connection with the database is established or if something bad happens during the process. While we could use the method directly, let's extract the retrieval of a connection to a separate method and return a `Future`:
 
 ```java
 private Future<SQLConnection> connect() {
@@ -302,7 +302,7 @@ if (ar.failed()) {
 
 just... shorter.
 
-However, before passing the `AsyncResult` to `future`, we want to configure the connection to enable the key generation. For this we use the `AsyncResult.map` method. This method creates another instance of `AsyncResult` based on the given one and apply a mapper function on the result. If the given one encapsulate a failure, the created one encapsulate the same failure. If the input is a success, the mapper function is applied on the result.
+However, before passing the `AsyncResult` to `future`, we want to configure the connection to enable the key generation. For this we use the `AsyncResult.map` method. This method creates another instance of `AsyncResult` based on the given one and applies a mapper function on the result. If the given one encapsulates a failure, the created one encapsulates the same failure. If the input is a success, the mapper function is applied on the result.
 
 ## We need articles
 
@@ -326,7 +326,7 @@ private Future<SQLConnection> createTableIfNeeded(SQLConnection connection) {
 
 The method also returns a `Future`. Attentive readers would spot that this is typically a method we can use in a `Future.compose` construct. This method body is quite simple. As usual we create a `Future` and returns it at the end of the body. Then, we read the content of the `tables.sql` file and execute the unique statement contained in this file. The `execute` method takes the SQL statement as parameter, and invokes the given function with the result. In the handler, we complete or fail the future using the `handle` method. In this case, we want to complete the future with the database connection.
 
-So, we need the `tables.sql` file. Creates the `src/main/resources/tables.sql` file with the following content:
+So, we need the `tables.sql` file. Create the `src/main/resources/tables.sql` file with the following content:
 
 ```sql
 CREATE TABLE IF NOT EXISTS Articles (id SERIAL PRIMARY KEY,
@@ -381,24 +381,24 @@ private Future<Article> insert(SQLConnection connection, Article article,
 }
 ```
 
-Let's start by the end and the `insert` method. It follows the same pattern, and uses the `updateWithParams` method to insert an article into the database. The SQL statement contains parameters injected using a JSON Array. Notice that the order of the parameter matters.  When the insertion is done (in the handler), we close the connection if requested (`closeConnection` parameter) - this is because we are going to reuse method later. Finally, we complete or fail the `future` with, on success, a new `Article` containing the generated id. So, if the insertion failed, we just forward the failure to the future. If the insertion succeed, we map it to an `Article` and complete the future with this value.
+Let's start by the end and the `insert` method. It follows the same pattern, and uses the `updateWithParams` method to insert an article into the database. The SQL statement contains parameters injected using a JSON Array. Notice that the order of the parameter matters.  When the insertion is done (in the handler), we close the connection if requested (`closeConnection` parameter) - this is because we are going to reuse the method later. Finally, we complete or fail the `future` with, on success, a new `Article` containing the generated id. So, if the insertion failed, we just forward the failure to the future. If the insertion succeeded, we map it to an `Article` and complete the future with this value.
 
-Ok, let's switch to the `createSomeDataIfNone` method. Again same pattern. But here we need a bit of coordination. Indeed, we have need to check whether the database is empty first, and if so insert two articles. To check if the database is empty, we use `connection.query` retrieving all the articles. If the result is not empty, we create two articles that we insert using the `insert` method. To execute these two insertions, we use the `CompositeFuture` construct. So both actions are executed in concurrently, and when both are done (or one fails) the handler is called. Notice that the connection is not closed.
+Ok, let's switch to the `createSomeDataIfNone` method. Again same pattern. But here we need a bit of coordination. Indeed, we need to check whether the database is empty first, and if so insert two articles. To check if the database is empty, we use `connection.query` retrieving all the articles. If the result is not empty, we create two articles that we insert using the `insert` method. To execute these two insertions, we use the `CompositeFuture` construct. So both actions are executed concurrently, and when both are done (or one fails) the handler is called. Notice that the connection is not closed.
 
 ## Putting these pieces together
 
 It's time to assemble these pieces and see how it works. The `start` method needs to be updated to execute the following action:
 
 1. Retrieve the configuration (already done)
-1. When the configuration is retrieve, create the JDBC client (already done)
+1. When the configuration is retrieved, create the JDBC client (already done)
 1. Retrieve a connection to the database
-1. With this connection, create the table if they do not exist
-1. With the same connection, check whether the database contains article, if not, insert some data
+1. With this connection, create the table if it does not exist
+1. With the same connection, check whether the database contains articles, if not, insert some data
 1. Close the connection
 1. Start the HTTP server as we are ready to _serve_
-1. Report the success of failure of the boot process to `fut`
+1. Report the success or failure of the boot process to `fut`
 
-Wow... that's a lot of actions. Fortunately, we have implemented almost all the required method in a way we can use `Future` composition. In the `start` method, replace the end of the code with:
+Wow... that's a lot of actions. Fortunately, we have implemented almost all the required methods in a way we can use `Future` composition. In the `start` method, replace the end of the code with:
 
 ```java
 // Start sequence:
@@ -431,7 +431,7 @@ ConfigRetriever.getConfigAsFuture(retriever)
     .setHandler(fut);
 ```
 
-Don't worry about the `createHttpServer` method. We will cover it shortly. The code starts by retrieving the configuration and creates the `JDBCClient`. Then, we retrieve a database connection and initialize our database. Notice that the connection is close in all cases (even failures). When the database is set up, we start the HTTP server. Finally, when everything is done, we report the result (success or failure) to the `fut` telling to Vert.x whether or not we are ready to work.
+Don't worry about the `createHttpServer` method. We will cover it shortly. The code starts by retrieving the configuration and creates the `JDBCClient`. Then, we retrieve a database connection and initialize our database. Notice that the connection is closed in all cases (even failures). When the database is set up, we start the HTTP server. Finally, when everything is done, we report the result (success or failure) to the `fut` telling Vert.x whether or not we are ready to work.
 
 __NOTE ABOUT CLOSING CONNECTIONS__: Don’t forget to close the SQL connection when you are done. The connection will be given back to the connection pool and be recycled.
 
@@ -451,7 +451,7 @@ private Future<Void> createHttpServer(JsonObject config, Router router) {
 }
 ```
 
-Notice the `mapEmpty`. The method returns a `Future<Void>`, as we don't care of the HTTP Server. To create an `AsyncResult<Void>` from an `AsyncResult<Something>` use the `mapEmpty` method, discarding the encapsulated result.
+Notice the `mapEmpty`. The method returns a `Future<Void>`, as we don't care about the HTTP Server. To create an `AsyncResult<Void>` from an `AsyncResult<Something>` use the `mapEmpty` method, discarding the encapsulated result.
 
 ## Implementing the REST API on top of JDBC
 
@@ -622,7 +622,7 @@ If we run the application tests right now, it fails. First we need to update the
 </dependency>
 ```
 
-But wait, if you already use JDBC or database in general, you know that each database use a different dialects (that's the power of standards). Here, we can't use the same table creation statement because HSQL does not understand the PostGreSQL dialect. So create the `src/test/resources/tables.sql` with the following content:
+But wait, if you already use JDBC or database in general, you know that each database uses a different dialect (that's the power of standards). Here, we can't use the same table creation statement because HSQL does not understand the PostGreSQL dialect. So create the `src/test/resources/tables.sql` with the following content:
 
 ```sql
 CREATE TABLE IF NOT EXISTS Articles (id INTEGER IDENTITY,
@@ -630,7 +630,7 @@ CREATE TABLE IF NOT EXISTS Articles (id INTEGER IDENTITY,
     url VARCHAR(200))
 ```
 
-It's the equivalent statement in the HSQL dialect. How would that work? When Vert.x reads a file it also checks the _classpath_ (and `src/test/resources` is included in the _test classpath_). When running test, this file superseds the initial file we created.
+It's the equivalent statement in the HSQL dialect. How would that work? When Vert.x reads a file it also checks the _classpath_ (and `src/test/resources` is included in the _test classpath_). When running tests, this file supersedes the initial file we created.
 
 We need to slightly update our tests to configure the `JDBCClient`. In the `MyFirstVerticleTest` class, change the `DeploymentOption` object created in the `setUp` method to be:
 
@@ -649,7 +649,7 @@ Now, you should be able to run the test with: `mvn clean test`.
 
 ## Show time
 
-This time we want to use a PostGreSQL instance. I'm going to use Docker, but use your favorite approach. With Docker, I start my instance as follows:
+This time we want to use a PostGreSQL instance. I'm going to use Docker, but can use your favorite approach. With Docker, I start my instance as follows:
 
 ```bash
 docker run --name some-postgres -e POSTGRES_USER=user \
@@ -664,7 +664,7 @@ Let’s now run our application:
 mvn compile vertx:run
 ```
 
-Open your browser to http://localhost:8082/assets/index.html, and you should see the application using the database. This time the products are stored in a database persisted on the file system. So, if we stop and restart the application, the data is restored.
+Open your browser to http://localhost:8082/assets/index.html, and you should see the application using the database. This time the articles are stored in a database persisted on the file system. So, if we stop and restart the application, the data is restored.
 
 If you want to package the application, run `mvn clean package`. Then run the application using:
 

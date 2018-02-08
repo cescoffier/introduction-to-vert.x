@@ -28,7 +28,7 @@ public class Article {
 
     public Article(JsonObject json) {
         this(
-            json.getInteger("id", -1),
+            json.getLong("id", -1l),
             json.getString("title"),
             json.getString("url")
         );

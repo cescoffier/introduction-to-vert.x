@@ -17,7 +17,7 @@ import java.util.Map;
 public class MyFirstVerticle extends AbstractVerticle {
 
     // Store our readingList
-    private Map<Integer, Article> readingList = new LinkedHashMap<>();
+    private Map<Long, Article> readingList = new LinkedHashMap<>();
 
     @Override
     public void start(Future<Void> fut) {
@@ -98,8 +98,8 @@ public class MyFirstVerticle extends AbstractVerticle {
     private void deleteOne(RoutingContext routingContext) {
         String id = routingContext.request().getParam("id");
         try {
-            Integer idAsInteger = Integer.valueOf(id);
-            readingList.remove(idAsInteger);
+            Long idAsLong = Long.valueOf(id);
+            readingList.remove(idAsLong);
             routingContext.response().setStatusCode(204).end();
         } catch (NumberFormatException e) {
             routingContext.response().setStatusCode(400).end();
@@ -110,8 +110,8 @@ public class MyFirstVerticle extends AbstractVerticle {
     private void getOne(RoutingContext routingContext) {
         String id = routingContext.request().getParam("id");
         try {
-            Integer idAsInteger = Integer.valueOf(id);
-            Article article = readingList.get(idAsInteger);
+            Long idAsLong = Long.valueOf(id);
+            Article article = readingList.get(idAsLong);
             if (article == null) {
                 // Not found
                 routingContext.response().setStatusCode(404).end();
@@ -129,15 +129,15 @@ public class MyFirstVerticle extends AbstractVerticle {
     private void updateOne(RoutingContext routingContext) {
         String id = routingContext.request().getParam("id");
         try {
-            Integer idAsInteger = Integer.valueOf(id);
-            Article article = readingList.get(idAsInteger);
+            Long idAsLong = Long.valueOf(id);
+            Article article = readingList.get(idAsLong);
             if (article == null) {
                 // Not found
                 routingContext.response().setStatusCode(404).end();
             } else {
                 JsonObject body = routingContext.getBodyAsJson();
                 article.setTitle(body.getString("title")).setUrl(body.getString("url"));
-                readingList.put(idAsInteger, article);
+                readingList.put(idAsLong, article);
                 routingContext.response()
                     .setStatusCode(200)
                     .putHeader("content-type", "application/json; charset=utf-8")

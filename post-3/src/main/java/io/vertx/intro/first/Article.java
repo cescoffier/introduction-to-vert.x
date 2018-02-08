@@ -1,13 +1,13 @@
 package io.vertx.intro.first;
 
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Article {
 
-    private static final AtomicInteger COUNTER = new AtomicInteger();
+    private static final AtomicLong COUNTER = new AtomicLong();
 
-    private final int id;
+    private final long id;
 
     private String title;
 
@@ -23,7 +23,7 @@ public class Article {
         this.id = COUNTER.getAndIncrement();
     }
 
-    public int getId() {
+    public long getId() {
         return id;
     }
 

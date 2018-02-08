@@ -215,13 +215,13 @@ But before going further, let’s create our _data object_, the class representi
 package io.vertx.intro.first;
 
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Article {
 
-    private static final AtomicInteger COUNTER = new AtomicInteger();
+    private static final AtomicLong COUNTER = new AtomicLong();
 
-    private final int id;
+    private final long id;
 
     private String title;
 
@@ -237,7 +237,7 @@ public class Article {
         this.id = COUNTER.getAndIncrement();
     }
 
-    public int getId() {
+    public long getId() {
         return id;
     }
 
@@ -267,7 +267,7 @@ Now, let’s create a couple of article. In the `MyFirstVerticle` class, add the
 
 ```java
 // Store our readingList
-private Map<Integer, Article> readingList = new LinkedHashMap<>();
+private Map<Long, Article> readingList = new LinkedHashMap<>();
 // Create a readingList
 private void createSomeData() {
     Article article1 = new Article("Fallacies of distributed computing", "https://en.wikipedia.org/wiki/Fallacies_of_distributed_computing");
@@ -395,8 +395,8 @@ Let’s see how the parameter can be used in the handler method. Create the dele
 private void deleteOne(RoutingContext routingContext) {
     String id = routingContext.request().getParam("id");
     try {
-        Integer idAsInteger = Integer.valueOf(id);
-        readingList.remove(idAsInteger);
+        Long idAsLong = Long.valueOf(id);
+        readingList.remove(idAsLong);
         routingContext.response().setStatusCode(204).end();
     } catch (NumberFormatException e) {
         routingContext.response().setStatusCode(400).end();
@@ -404,7 +404,7 @@ private void deleteOne(RoutingContext routingContext) {
 }
 ```
 
-The path parameter is retrieved using `routingContext.request().getParam("id")`. In a `try-catch` block we try to convert this path parameter as integer. If it fails (with a `NumberFormatException`), we write a `Bad Request - 400` response. If it's ok, we just remove the article from our backend.
+The path parameter is retrieved using `routingContext.request().getParam("id")`. In a `try-catch` block we try to convert this path parameter as Long. If it fails (with a `NumberFormatException`), we write a `Bad Request - 400` response. If it's ok, we just remove the article from our backend.
 
 _Status 204?_
 As you can see, we have set the response status to `204 - NO CONTENT`. Responses to the HTTP Verb `DELETE` have generally no content.
